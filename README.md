@@ -53,8 +53,9 @@ Open <http://localhost:3000>. The page calls `GET http://localhost:8000/health`
 and reports whether the API is reachable.
 
 To run backend tests, activate the backend virtual environment and run
-`pytest`. From `frontend/`, run `npm run lint`, `npx tsc --noEmit`, or
-`npm run build`.
+`python -m pytest tests -q`. From `backend/`, run `ruff check .` and
+`ruff format --check .`. From `frontend/`, run `npm run lint`,
+`npx tsc --noEmit`, or `npm run build`.
 
 ## Configuration
 
@@ -165,3 +166,12 @@ Before deploying:
 
 The API and engine limits are application safeguards, not a substitute for
 gateway request limits, deployment-level resource controls, or access control.
+
+## Milestone 5: automated quality checks
+
+The GitHub Actions workflow at `.github/workflows/quality.yml` runs on pushes
+and pull requests. Its backend job installs the development requirements, runs
+Ruff lint and format checks, and executes the pytest suite on Python 3.11 and
+3.14. The frontend job runs ESLint, the TypeScript check, and a production
+build on Node 22. No Stockfish binary or secrets are required by these
+automated checks.

@@ -124,12 +124,7 @@ def test_malformed_moves_do_not_write_pgn_details_to_logs(
     caplog: pytest.LogCaptureFixture,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    sensitive_pgn = (
-        '[Event "Private Event"]\n'
-        '[White "Private White"]\n'
-        "\n"
-        "1. e5 *\n"
-    )
+    sensitive_pgn = '[Event "Private Event"]\n[White "Private White"]\n\n1. e5 *\n'
 
     with pytest.raises(review.InvalidPgnError):
         review.parse_single_game(sensitive_pgn)

@@ -62,8 +62,7 @@ def open_configured_engine(
                 yield engine
         except TimeoutError as error:
             raise EngineAnalysisTimeoutError(
-                "Stockfish did not respond within "
-                f"{timeout_seconds:g} seconds."
+                f"Stockfish did not respond within {timeout_seconds:g} seconds."
             ) from error
         except (OSError, chess.engine.EngineError) as error:
             raise EngineUnavailableError(

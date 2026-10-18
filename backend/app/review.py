@@ -27,12 +27,9 @@ MISTAKE_THRESHOLD_CP = int(os.getenv("MISTAKE_THRESHOLD_CP", "300"))
 BLUNDER_THRESHOLD_CP = int(os.getenv("BLUNDER_THRESHOLD_CP", "500"))
 CONTINUATION_LENGTH = 5
 
-if not (
-    0 < INACCURACY_THRESHOLD_CP < MISTAKE_THRESHOLD_CP < BLUNDER_THRESHOLD_CP
-):
+if not (0 < INACCURACY_THRESHOLD_CP < MISTAKE_THRESHOLD_CP < BLUNDER_THRESHOLD_CP):
     raise ValueError(
-        "Evaluation thresholds must be positive and ordered from inaccuracy "
-        "to blunder."
+        "Evaluation thresholds must be positive and ordered from inaccuracy to blunder."
     )
 
 
@@ -121,9 +118,7 @@ def parse_single_game(pgn_text: str) -> ParsedGame:
     if game is None:
         raise InvalidPgnError("The uploaded file does not contain a PGN game.")
     if game.errors:
-        raise InvalidPgnError(
-            "The PGN is malformed or contains an illegal move."
-        )
+        raise InvalidPgnError("The PGN is malformed or contains an illegal move.")
     if second_game is not None:
         raise InvalidPgnError("Upload exactly one PGN game per file.")
 
@@ -148,9 +143,7 @@ def parse_single_game(pgn_text: str) -> ParsedGame:
                 f"The game exceeds the limit of {MAX_GAME_PLIES} plies."
             )
         if not board.is_legal(move):
-            raise InvalidPgnError(
-                "The PGN is malformed or contains an illegal move."
-            )
+            raise InvalidPgnError("The PGN is malformed or contains an illegal move.")
 
         color: Literal["white", "black"] = "white" if board.turn else "black"
         move_number = board.fullmove_number
@@ -241,8 +234,7 @@ def _finding_label(
     after: Evaluation,
 ) -> tuple[
     int | None,
-    Literal["inaccuracy", "mistake", "blunder", "mate_swing", "terminal"]
-    | None,
+    Literal["inaccuracy", "mistake", "blunder", "mate_swing", "terminal"] | None,
 ]:
     if after["kind"] == "terminal":
         return None, "terminal"
