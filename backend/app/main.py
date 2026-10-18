@@ -8,6 +8,7 @@ from starlette.concurrency import run_in_threadpool
 
 from app.engine import (
     EngineAnalysisTimeoutError,
+    EngineBusyError,
     EngineUnavailableError,
     analyze_start_position,
 )
@@ -107,6 +108,8 @@ def health_check() -> HealthResponse:
 def engine_smoke_check() -> EngineSmokeResponse:
     try:
         result = analyze_start_position()
+    except EngineBusyError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
     except EngineAnalysisTimeoutError as error:
         raise HTTPException(status_code=504, detail=str(error)) from error
     except EngineUnavailableError as error:
@@ -140,6 +143,8 @@ async def analyze_uploaded_game(
 
     try:
         result: GameReview = await run_in_threadpool(analyze_game, pgn_text)
+    except EngineBusyError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
     except InvalidPgnError as error:
         raise HTTPException(status_code=422, detail=str(error)) from error
     except EngineAnalysisTimeoutError as error:

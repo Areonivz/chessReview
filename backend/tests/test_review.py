@@ -1,5 +1,7 @@
 import asyncio
+import threading
 from contextlib import contextmanager
+from types import SimpleNamespace
 from typing import Generator
 
 import chess
@@ -7,7 +9,7 @@ import chess.engine
 import httpx
 import pytest
 
-from app import review
+from app import engine, review
 from app.main import app
 
 SAMPLE_PGN = (
@@ -292,6 +294,33 @@ def test_engine_timeout_returns_explicit_partial_results(
     assert len(result["moves"]) == 2
 
 
+def test_game_budget_returns_partial_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeEngine()
+    clock_values = iter([0.0, 0.0, 0.0, 0.2])
+    monkeypatch.setattr(
+        review,
+        "time",
+        SimpleNamespace(monotonic=lambda: next(clock_values)),
+    )
+    monkeypatch.setattr(review, "GAME_ANALYSIS_BUDGET_SECONDS", 0.1)
+    monkeypatch.setattr(
+        review,
+        "open_configured_engine",
+        lambda **kwargs: fake_engine_context(fake, **kwargs),
+    )
+
+    result = review.analyze_game(SAMPLE_PGN)
+
+    assert result["complete"] is False
+    assert result["partial_error"] == (
+        "Analysis reached its 0.1-second engine time budget."
+    )
+    assert result["analysis"]["analyzed_plies"] == 1
+    assert len(result["moves"]) == 2
+
+
 def test_engine_crash_returns_explicit_partial_results(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -374,6 +403,21 @@ def test_upload_reports_missing_engine(
 
     assert response.status_code == 503
     assert "Set STOCKFISH_PATH" in response.json()["detail"]
+
+
+def test_upload_reports_busy_engine_slots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("STOCKFISH_PATH", "configured-stockfish")
+    slots = threading.BoundedSemaphore(1)
+    assert slots.acquire(blocking=False)
+    monkeypatch.setattr(engine, "_ENGINE_SLOTS", slots)
+
+    response = post_game(SAMPLE_PGN)
+
+    slots.release()
+    assert response.status_code == 503
+    assert "analysis slots are busy" in response.json()["detail"]
 
 
 def test_upload_reports_engine_timeout_before_any_move(

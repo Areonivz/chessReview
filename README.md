@@ -116,6 +116,13 @@ are approximate threshold heuristics, not explanations of a player's intent.
 The API does not write uploaded PGNs or player details to application logs or
 save them as project files.
 
+The limits are independent safeguards: a 500-ply game could require about 50
+seconds of position searches at 0.1 seconds each, before engine startup and
+other overhead. The 30-second game budget can therefore return partial results
+for long games. Each backend process allows at most two active Stockfish
+processes across both analysis endpoints; additional engine requests receive
+HTTP 503 and can be retried.
+
 Run the parser, engine-comparison, and upload failure tests with
 `pytest tests/test_review.py tests/test_engine.py`.
 
@@ -132,3 +139,29 @@ If analysis is partial, the page explains why and retains the available
 results. A game with no findings displays an explicit no-review-moments state;
 this does not imply that every move was perfect. The included `backend/sample.pgn`
 can be used to exercise the upload and review flow.
+
+## Milestone 4: hardening and deployment
+
+The API bounds PGN file size, legal mainline length, per-position search time,
+total game-analysis time, and engine communication time. Engine subprocesses
+are managed with a context manager, and a per-process semaphore limits engine
+instances; the slot is released on startup failures and when analysis exits.
+The two-process limit applies separately to each API worker, so increasing the
+worker count increases total engine concurrency and resource use.
+
+Before deploying:
+
+- Keep the API private or put authentication and rate limiting in a trusted
+  gateway. The MVP has no user authentication; CORS is not access control.
+- Configure the gateway body-size limit to allow the 1 MB PGN plus multipart
+  form overhead, and set upstream timeouts long enough for the 30-second
+  analysis budget.
+- Size CPU and memory for up to two Stockfish processes per API worker. Start
+  with one API worker unless the host can support the multiplied concurrency.
+- Keep PGNs and request bodies out of access logs, tracing, and persistent
+  temporary storage; use HTTPS for any non-local connection.
+- Install Stockfish separately. Verify the exact binary's GPLv3 obligations
+  before distributing it, and document its source and version for deployments.
+
+The API and engine limits are application safeguards, not a substitute for
+gateway request limits, deployment-level resource controls, or access control.

@@ -1,4 +1,5 @@
 import asyncio
+import threading
 from typing import Any
 
 import chess
@@ -6,6 +7,7 @@ import chess.engine
 import httpx
 import pytest
 
+from app import engine
 from app.main import app
 
 
@@ -85,6 +87,108 @@ def test_engine_smoke_reports_engine_timeout(
 
     assert response.status_code == 504
     assert "did not respond within 5 seconds" in response.json()["detail"]
+
+
+def test_engine_smoke_reports_busy_engine_slots(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("STOCKFISH_PATH", "configured-stockfish")
+    slots = threading.BoundedSemaphore(1)
+    assert slots.acquire(blocking=False)
+    monkeypatch.setattr(engine, "_ENGINE_SLOTS", slots)
+
+    response = post_engine_smoke()
+
+    slots.release()
+    assert response.status_code == 503
+    assert "analysis slots are busy" in response.json()["detail"]
+
+
+def test_engine_slot_is_released_after_context_exits(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("STOCKFISH_PATH", "configured-stockfish")
+    slots = threading.BoundedSemaphore(1)
+    monkeypatch.setattr(engine, "_ENGINE_SLOTS", slots)
+    closed = False
+
+    class ManagedEngine:
+        def __enter__(self) -> "ManagedEngine":
+            return self
+
+        def __exit__(self, *args: Any) -> None:
+            nonlocal closed
+            closed = True
+
+    monkeypatch.setattr(
+        chess.engine.SimpleEngine,
+        "popen_uci",
+        lambda *args, **kwargs: ManagedEngine(),
+    )
+
+    with engine.open_configured_engine():
+        with pytest.raises(engine.EngineBusyError, match="slots are busy"):
+            with engine.open_configured_engine():
+                pytest.fail("A second engine acquired the occupied slot.")
+
+    assert closed is True
+    assert slots.acquire(blocking=False)
+    slots.release()
+
+
+def test_engine_slot_is_released_when_startup_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("STOCKFISH_PATH", "missing-stockfish")
+    slots = threading.BoundedSemaphore(1)
+    monkeypatch.setattr(engine, "_ENGINE_SLOTS", slots)
+
+    def fail_startup(*args: Any, **kwargs: Any) -> Any:
+        raise FileNotFoundError("missing engine executable")
+
+    monkeypatch.setattr(
+        chess.engine.SimpleEngine,
+        "popen_uci",
+        fail_startup,
+    )
+
+    with pytest.raises(engine.EngineUnavailableError):
+        with engine.open_configured_engine():
+            pytest.fail("Engine startup should have failed.")
+
+    assert slots.acquire(blocking=False)
+    slots.release()
+
+
+def test_engine_slot_is_released_when_analysis_raises(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("STOCKFISH_PATH", "configured-stockfish")
+    slots = threading.BoundedSemaphore(1)
+    monkeypatch.setattr(engine, "_ENGINE_SLOTS", slots)
+    closed = False
+
+    class ManagedEngine:
+        def __enter__(self) -> "ManagedEngine":
+            return self
+
+        def __exit__(self, *args: Any) -> None:
+            nonlocal closed
+            closed = True
+
+    monkeypatch.setattr(
+        chess.engine.SimpleEngine,
+        "popen_uci",
+        lambda *args, **kwargs: ManagedEngine(),
+    )
+
+    with pytest.raises(RuntimeError, match="analysis failed"):
+        with engine.open_configured_engine():
+            raise RuntimeError("analysis failed")
+
+    assert closed is True
+    assert slots.acquire(blocking=False)
+    slots.release()
 
 
 def test_engine_smoke_returns_score_and_candidate_move(

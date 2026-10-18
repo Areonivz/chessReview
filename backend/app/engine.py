@@ -1,4 +1,5 @@
 import os
+import threading
 from contextlib import contextmanager
 from typing import Generator, Literal, TypedDict
 
@@ -7,6 +8,8 @@ import chess.engine
 
 ANALYSIS_LIMIT_SECONDS = 1.0
 ENGINE_TIMEOUT_SECONDS = 5.0
+MAX_CONCURRENT_ENGINE_PROCESSES = 2
+_ENGINE_SLOTS = threading.BoundedSemaphore(MAX_CONCURRENT_ENGINE_PROCESSES)
 
 
 class EngineAnalysis(TypedDict):
@@ -30,6 +33,10 @@ class EngineAnalysisTimeoutError(RuntimeError):
     pass
 
 
+class EngineBusyError(RuntimeError):
+    pass
+
+
 @contextmanager
 def open_configured_engine(
     timeout_seconds: float = ENGINE_TIMEOUT_SECONDS,
@@ -41,22 +48,30 @@ def open_configured_engine(
             "Stockfish executable and restart the backend."
         )
 
+    if not _ENGINE_SLOTS.acquire(blocking=False):
+        raise EngineBusyError(
+            "All Stockfish analysis slots are busy. Try again shortly."
+        )
+
     try:
-        with chess.engine.SimpleEngine.popen_uci(
-            engine_path,
-            timeout=timeout_seconds,
-        ) as engine:
-            yield engine
-    except TimeoutError as error:
-        raise EngineAnalysisTimeoutError(
-            "Stockfish did not respond within "
-            f"{timeout_seconds:g} seconds."
-        ) from error
-    except (OSError, chess.engine.EngineError) as error:
-        raise EngineUnavailableError(
-            "Stockfish could not be started or failed during analysis. "
-            "Check STOCKFISH_PATH and that the engine binary can run."
-        ) from error
+        try:
+            with chess.engine.SimpleEngine.popen_uci(
+                engine_path,
+                timeout=timeout_seconds,
+            ) as engine:
+                yield engine
+        except TimeoutError as error:
+            raise EngineAnalysisTimeoutError(
+                "Stockfish did not respond within "
+                f"{timeout_seconds:g} seconds."
+            ) from error
+        except (OSError, chess.engine.EngineError) as error:
+            raise EngineUnavailableError(
+                "Stockfish could not be started or failed during analysis. "
+                "Check STOCKFISH_PATH and that the engine binary can run."
+            ) from error
+    finally:
+        _ENGINE_SLOTS.release()
 
 
 def analyze_position(
