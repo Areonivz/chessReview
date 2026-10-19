@@ -204,8 +204,10 @@ untrusted high-volume traffic.
 
 The landing page offers **Try checkmate demo**, which submits the bundled
 `frontend/public/demo.pgn` through the same API flow as an uploaded game. The
-Fool's Mate example selects its terminal finding automatically so visitors
-land on the final board position and see why checkmate is flagged. The app
-explains that the ending is determined by the legal move record while other
-engine evaluations remain approximate. A backend regression test checks that
-the bundled demo continues to produce the expected checkmate finding.
+game selects its terminal checkmate finding automatically so visitors land on
+the final board position and see why checkmate is flagged. The app explains
+that the ending is determined by the legal move record while other engine
+evaluations remain approximate. Visitors can filter findings by player and
+flip the board between White and Black perspectives. A backend regression test
+checks that the bundled demo continues to produce the expected checkmate
+finding.

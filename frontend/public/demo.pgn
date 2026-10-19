@@ -1,9 +1,13 @@
-[Event "Fool's Mate · Guided Demo"]
-[Site "Chess Review"]
-[Date "????.??.??"]
-[Round "-"]
-[White "Demo White"]
-[Black "Demo Black"]
+[Event "Guided Demo"]
+[Site "Chess.com"]
+[Date "2026.10.19"]
+[Round "?"]
+[White "Toto1506"]
+[Black "jnrz"]
 [Result "0-1"]
 
-1. f3 e5 2. g4 Qh4# 0-1
+1. e4 e5 2. Nf3 Nc6 3. Nc3 Nf6 4. Bc4 Bc5 5. Ng5 O-O 6. O-O h6 7. Nf3 d6 8. d3
+Bg4 9. h3 Bh5 10. Qe2 Nd4 11. Qe1 Nxc2 12. Qd2 Nxa1 13. b3 Bxf3 14. gxf3 Re8 15.
+Bb2 Nxb3 16. Bxb3 Qd7 17. Qd1 Qxh3 18. Qd2 Qxf3 19. Nd5 Nxd5 20. exd5 Qg4+ 21.
+Kh1 Qh3+ 22. Kg1 Rad8 23. Bc4 Bd4 24. Bxd4 exd4 25. Bb5 Re5 26. Bc4 Rg5+ 27.
+Qxg5 hxg5 28. Bb3 g4 29. f3 g3 30. Bc2 Qh2# 0-1

@@ -45,6 +45,8 @@ const LABELS: Record<ReviewFinding["label"], string> = {
 };
 
 type BackendStatus = "checking" | "online" | "offline";
+type PlayerColor = "white" | "black";
+type FindingFilter = "all" | PlayerColor;
 
 function formatChange(change: number | null): string {
   if (change === null) {
@@ -57,10 +59,12 @@ function PositionBoard({
   fen,
   lastMove,
   description,
+  perspective,
 }: {
   fen: string;
   lastMove: GameMove | null;
   description: string;
+  perspective: PlayerColor;
 }) {
   const [placement, activeColor] = fen.split(" ");
   const ranks = placement.split("/");
@@ -99,10 +103,14 @@ function PositionBoard({
     }
   }
 
+  if (perspective === "black") {
+    squares.reverse();
+  }
+
   return (
     <div
       role="img"
-      aria-label={`${description}. ${activeColor === "b" ? "Black" : "White"} to move.`}
+      aria-label={`${description}. ${perspective === "white" ? "White" : "Black"} perspective. ${activeColor === "b" ? "Black" : "White"} to move.`}
       className="grid grid-cols-8 overflow-hidden rounded-xl border-4 border-[#26352f] shadow-2xl"
     >
       {squares.map((square, index) => {
@@ -125,7 +133,7 @@ function PositionBoard({
                   isDark ? "text-[#f4f1e5]" : "text-[#63776a]"
                 }`}
               >
-                {8 - row}
+                {square.name[1]}
               </span>
             )}
             {row === 7 && (
@@ -135,7 +143,7 @@ function PositionBoard({
                   isDark ? "text-[#f4f1e5]" : "text-[#63776a]"
                 }`}
               >
-                {String.fromCharCode(97 + column)}
+                {square.name[0]}
               </span>
             )}
             {square.piece && (
@@ -143,8 +151,8 @@ function PositionBoard({
                 aria-hidden="true"
                 className={`relative z-10 select-none text-[clamp(1.45rem,8vw,3.4rem)] leading-none ${
                   isPieceWhite
-                    ? "text-[#fffdf2] drop-shadow-[0_1px_1px_#1b2921]"
-                    : "text-[#23332a] drop-shadow-[0_1px_1px_#f0efdf]"
+                    ? "text-[#f0eddc] [-webkit-text-stroke:1px_#34443a] drop-shadow-[0_1px_2px_#1b2921]"
+                    : "text-[#23332a] [-webkit-text-stroke:0.5px_#f0efdf] drop-shadow-[0_1px_1px_#f0efdf]"
                 }`}
               >
                 {PIECES[square.piece]}
@@ -303,6 +311,11 @@ function FindingCard({
         {evaluationLabel(finding.evaluation_after)}
         <span className="ml-2 text-[#aebdb1]">({changeText})</span>
       </span>
+      <span className="mt-1 block text-xs text-[#9eada2]">
+        From{" "}
+        {finding.evaluation_before.perspective === "white" ? "White" : "Black"}
+        &apos;s perspective
+      </span>
       {finding.best_move_san && (
         <span className="mt-2 block text-sm text-[#aebdb1]">
           Engine candidate:{" "}
@@ -342,6 +355,9 @@ export function ReviewExperience() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [backendStatus, setBackendStatus] = useState<BackendStatus>("checking");
+  const [boardPerspective, setBoardPerspective] =
+    useState<PlayerColor>("white");
+  const [findingFilter, setFindingFilter] = useState<FindingFilter>("all");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -384,6 +400,11 @@ export function ReviewExperience() {
   const selectedFinding = review?.findings.find(
     (finding) => finding.ply === selectedPly,
   );
+  const visibleFindings =
+    review?.findings.filter(
+      (finding) =>
+        findingFilter === "all" || finding.color === findingFilter,
+    ) ?? [];
   const analyzedThroughPly = review?.moves[review.analysis.analyzed_plies - 1]?.ply ?? 0;
   const backendStatusText = {
     checking: "Checking API",
@@ -423,6 +444,7 @@ export function ReviewExperience() {
     setReview(null);
     setSelectedFile(null);
     setSelectedPly(0);
+    setFindingFilter("all");
     setElapsedSeconds(0);
     setIsAnalyzing(true);
     const formData = new FormData();
@@ -503,6 +525,22 @@ export function ReviewExperience() {
   function moveToPly(ply: number) {
     if (review) {
       setSelectedPly(Math.max(0, Math.min(ply, review.moves.length)));
+    }
+  }
+
+  function handleFindingFilter(filter: FindingFilter) {
+    setFindingFilter(filter);
+    if (
+      filter !== "all" &&
+      selectedFinding &&
+      selectedFinding.color !== filter
+    ) {
+      const firstFinding = review?.findings.find(
+        (finding) => finding.color === filter,
+      );
+      if (firstFinding) {
+        moveToPly(firstFinding.ply);
+      }
     }
   }
 
@@ -674,6 +712,7 @@ export function ReviewExperience() {
                     <PositionBoard
                       fen={boardFen}
                       lastMove={previousMove}
+                      perspective={boardPerspective}
                       description={
                         selectedMove
                           ? `Position after ${selectedMove.move_number}${selectedMove.color === "black" ? "..." : "."} ${selectedMove.san}`
@@ -692,7 +731,28 @@ export function ReviewExperience() {
                         {sideToMove} to move
                       </p>
                     </div>
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div
+                        role="group"
+                        aria-label="Board perspective"
+                        className="flex rounded-lg border border-[#43544a] p-0.5"
+                      >
+                        {(["white", "black"] as const).map((perspective) => (
+                          <button
+                            key={perspective}
+                            type="button"
+                            onClick={() => setBoardPerspective(perspective)}
+                            aria-pressed={boardPerspective === perspective}
+                            className={`min-h-9 rounded-md px-2.5 text-xs font-semibold capitalize focus-visible:outline-2 focus-visible:outline-emerald-300 ${
+                              boardPerspective === perspective
+                                ? "bg-emerald-300 text-[#142019]"
+                                : "text-[#c3cec5] hover:bg-[#26352f]"
+                            }`}
+                          >
+                            {perspective}
+                          </button>
+                        ))}
+                      </div>
                       <button
                         type="button"
                         onClick={() => moveToPly(selectedPly - 1)}
@@ -727,7 +787,7 @@ export function ReviewExperience() {
                 </div>
               </section>
 
-              <section className="space-y-4">
+              <section className="space-y-4 lg:sticky lg:top-4 lg:max-h-[calc(100vh-2rem)] lg:self-start lg:overflow-y-auto lg:pr-1">
                 {selectedFinding && (
                   <div className="rounded-2xl border border-emerald-300/25 bg-[#1c2c24] p-5">
                     <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-300">
@@ -748,12 +808,15 @@ export function ReviewExperience() {
                         </>
                       ) : (
                         <>
-                          The evaluation changed by{" "}
+                          From{" "}
+                          {selectedFinding.evaluation_before.perspective ===
+                          "white"
+                            ? "White"
+                            : "Black"}
+                          &apos;s perspective, the evaluation changed by{" "}
                           <strong>
                             {formatChange(selectedFinding.evaluation_change_cp)}
-                          </strong>{" "}
-                          from {selectedFinding.color}&apos;s perspective. This
-                          is an approximate engine-based signal, not an
+                          </strong>. This is an approximate engine-based signal, not an
                           explanation of intent.
                         </>
                       )}
@@ -772,13 +835,37 @@ export function ReviewExperience() {
                       </p>
                     </div>
                     <span className="rounded-full bg-[#293a31] px-2.5 py-1 text-xs text-[#d1dad2]">
-                      {review.findings.length}
+                      {visibleFindings.length}
                     </span>
                   </div>
 
-                  {review.findings.length > 0 ? (
+                  <div
+                    role="group"
+                    aria-label="Filter review moments by player"
+                    className="mt-4 flex flex-wrap gap-2"
+                  >
+                    {(["all", "white", "black"] as const).map((filter) => (
+                      <button
+                        key={filter}
+                        type="button"
+                        onClick={() => handleFindingFilter(filter)}
+                        aria-pressed={findingFilter === filter}
+                        className={`min-h-9 rounded-full border px-3 text-xs font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-emerald-300 ${
+                          findingFilter === filter
+                            ? "border-emerald-300 bg-emerald-300 text-[#142019]"
+                            : "border-[#43544a] text-[#c3cec5] hover:bg-[#26352f]"
+                        }`}
+                      >
+                        {filter === "all"
+                          ? "All"
+                          : `${filter[0].toUpperCase()}${filter.slice(1)} moves`}
+                      </button>
+                    ))}
+                  </div>
+
+                  {visibleFindings.length > 0 ? (
                     <div className="mt-4 space-y-3">
-                      {review.findings.map((finding) => (
+                      {visibleFindings.map((finding) => (
                         <FindingCard
                           key={finding.ply}
                           finding={finding}
@@ -790,7 +877,9 @@ export function ReviewExperience() {
                   ) : (
                     <div className="mt-4 rounded-xl border border-dashed border-[#43544a] px-4 py-6 text-center">
                       <p className="text-sm font-semibold text-[#e4e9e1]">
-                        No review moments crossed the configured thresholds.
+                        {review.findings.length === 0
+                          ? "No review moments crossed the configured thresholds."
+                          : `No ${findingFilter} review moments crossed the configured thresholds.`}
                       </p>
                       <p className="mx-auto mt-2 max-w-sm text-xs leading-5 text-[#9eada2]">
                         That does not mean every move was perfect. Engine

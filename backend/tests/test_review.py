@@ -261,7 +261,7 @@ def test_guided_demo_always_contains_a_checkmate_review_moment(
     terminal_finding = next(
         finding for finding in result["findings"] if finding["label"] == "terminal"
     )
-    assert terminal_finding["played_move_san"] == "Qh4#"
+    assert terminal_finding["played_move_san"] == "Qh2#"
     assert terminal_finding["evaluation_after"]["terminal_reason"] == "checkmate"
     assert terminal_finding["ply"] == len(result["moves"])
 
