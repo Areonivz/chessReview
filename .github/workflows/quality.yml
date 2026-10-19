@@ -58,3 +58,25 @@ jobs:
         run: npx tsc --noEmit
       - name: Build frontend
         run: npm run build
+
+  container:
+    name: Backend container and Stockfish smoke test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Build backend container
+        run: docker build --tag chess-review-api --file backend/Dockerfile .
+      - name: Smoke test container
+        run: |
+          set -euo pipefail
+          docker run --detach --name chess-review-api -p 10000:10000 chess-review-api
+          trap 'docker logs chess-review-api; docker rm --force chess-review-api >/dev/null' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://localhost:10000/health; then
+              break
+            fi
+            sleep 2
+          done
+          curl --fail http://localhost:10000/health
+          curl --fail --request POST http://localhost:10000/engine/smoke

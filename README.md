@@ -173,5 +173,29 @@ The GitHub Actions workflow at `.github/workflows/quality.yml` runs on pushes
 and pull requests. Its backend job installs the development requirements, runs
 Ruff lint and format checks, and executes the pytest suite on Python 3.11 and
 3.14. The frontend job runs ESLint, the TypeScript check, and a production
-build on Node 22. No Stockfish binary or secrets are required by these
+build on Node 22. A container job builds the API image and smoke-tests its
+health endpoint and Stockfish engine. No secrets are required by these
 automated checks.
+
+## Milestone 6: deploy a public demo on Render
+
+The root `render.yaml` Blueprint creates two services in Frankfurt:
+
+- A free Render Static Site built from `frontend/` with Next.js static export.
+- A free Docker web service for FastAPI, with Stockfish installed from the
+  Debian package repository and `/health` configured as its health check.
+
+To deploy, connect the GitHub repository in Render, choose **New > Blueprint**,
+and select this repository. Render reads `render.yaml` to configure the
+services. The frontend obtains the backend hostname from the web service
+reference; it accepts either a hostname or a full URL. The API is configured
+with wildcard CORS because this is an anonymous public demo, not an access
+control boundary.
+
+The free API can spin down after inactivity, so its first request may take
+about a minute to wake. Free-tier services are intended for hobby projects and
+previews rather than production. The analysis endpoints remain publicly
+reachable and can consume the available CPU; the per-process engine limit
+caps concurrent Stockfish processes but is not authentication or a
+rate-limiting system. Do not use this deployment for sensitive games or
+untrusted high-volume traffic.

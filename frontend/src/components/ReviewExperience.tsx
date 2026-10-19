@@ -11,8 +11,14 @@ import {
 } from "@/lib/review";
 
 const MAX_PGN_BYTES = 1_000_000;
-const BACKEND_URL =
+const configuredBackendUrl =
   process.env.NEXT_PUBLIC_BACKEND_URL ?? "http://localhost:8000";
+const BACKEND_URL = (
+  configuredBackendUrl.startsWith("http://") ||
+  configuredBackendUrl.startsWith("https://")
+    ? configuredBackendUrl
+    : `https://${configuredBackendUrl}`
+).replace(/\/+$/, "");
 
 const PIECES: Record<string, string> = {
   K: "♔",
