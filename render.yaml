@@ -11,8 +11,9 @@ services:
       - key: FRONTEND_ORIGIN
         value: "*"
 
-  - type: static
+  - type: web
     name: chess-review-frontend
+    runtime: static
     rootDir: frontend
     buildCommand: npm ci && npm run build
     staticPublishPath: ./out
