@@ -19,6 +19,7 @@ const BACKEND_URL = (
     ? configuredBackendUrl
     : `https://${configuredBackendUrl}`
 ).replace(/\/+$/, "");
+const DEMO_PGN_URL = "/demo.pgn";
 
 const PIECES: Record<string, string> = {
   K: "♔",
@@ -261,7 +262,12 @@ function FindingCard({
   const change = finding.evaluation_change_cp;
   const changeText =
     change === null
-      ? formatChange(change)
+      ? finding.label === "terminal"
+        ? (finding.evaluation_after.terminal_reason ?? "Game ended").replace(
+            /^./,
+            (letter) => letter.toUpperCase(),
+          )
+        : formatChange(change)
       : `${change > 0 ? "+" : ""}${formatChange(change)}`;
 
   return (
@@ -408,19 +414,19 @@ export function ReviewExperience() {
     }
   }
 
-  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedFile || isAnalyzing) {
+  async function analyzeFile(file: File, isDemo = false) {
+    if (isAnalyzing) {
       return;
     }
 
     setError(null);
     setReview(null);
+    setSelectedFile(null);
     setSelectedPly(0);
     setElapsedSeconds(0);
     setIsAnalyzing(true);
     const formData = new FormData();
-    formData.append("file", selectedFile);
+    formData.append("file", file);
 
     try {
       const response = await fetch(`${BACKEND_URL}/games/analyze`, {
@@ -449,8 +455,10 @@ export function ReviewExperience() {
       }
 
       setReview(payload);
-      setSelectedPly(payload.moves[0]?.ply ?? 0);
-      setSelectedFile(null);
+      const demoFinding = isDemo
+        ? payload.findings.find((finding) => finding.label === "terminal")
+        : undefined;
+      setSelectedPly(demoFinding?.ply ?? payload.moves[0]?.ply ?? 0);
     } catch (caughtError) {
       setError(
         caughtError instanceof TypeError
@@ -461,6 +469,34 @@ export function ReviewExperience() {
       );
     } finally {
       setIsAnalyzing(false);
+    }
+  }
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (selectedFile) {
+      await analyzeFile(selectedFile);
+    }
+  }
+
+  async function handleDemo() {
+    try {
+      const response = await fetch(DEMO_PGN_URL);
+      if (!response.ok) {
+        throw new Error("The guided demo game could not be loaded. Try again.");
+      }
+      const demoFile = new File(
+        [await response.text()],
+        "demo.pgn",
+        { type: "application/x-chess-pgn" },
+      );
+      await analyzeFile(demoFile, true);
+    } catch (caughtError) {
+      setError(
+        caughtError instanceof Error
+          ? caughtError.message
+          : "The guided demo game could not be loaded. Try again.",
+      );
     }
   }
 
@@ -520,6 +556,10 @@ export function ReviewExperience() {
               Review a single game with Stockfish-supported prompts. Evaluations
               describe positions and moves—not why a player chose them.
             </p>
+            <p className="mt-3 max-w-2xl text-sm leading-6 text-[#aab7ad]">
+              New here? Try the guided checkmate demo to see a review moment
+              without preparing a PGN.
+            </p>
           </div>
 
           <form
@@ -551,13 +591,23 @@ export function ReviewExperience() {
                 </p>
               )}
             </div>
-            <button
-              type="submit"
-              disabled={!selectedFile || isAnalyzing}
-              className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-emerald-300 px-5 py-2.5 text-sm font-bold text-[#142019] transition-colors hover:bg-emerald-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-200 disabled:cursor-not-allowed disabled:bg-[#43544a] disabled:text-[#a9b3aa] sm:mt-0 sm:w-auto"
-            >
-              {isAnalyzing ? "Analysing…" : "Analyse game"}
-            </button>
+            <div className="mt-4 flex w-full flex-col gap-2 sm:mt-0 sm:w-auto sm:flex-row">
+              <button
+                type="submit"
+                disabled={!selectedFile || isAnalyzing}
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-emerald-300 px-5 py-2.5 text-sm font-bold text-[#142019] transition-colors hover:bg-emerald-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-200 disabled:cursor-not-allowed disabled:bg-[#43544a] disabled:text-[#a9b3aa] sm:w-auto"
+              >
+                {isAnalyzing ? "Analysing…" : "Analyse game"}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDemo()}
+                disabled={isAnalyzing}
+                className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-[#6a8575] px-5 py-2.5 text-sm font-semibold text-emerald-100 transition-colors hover:bg-[#26352f] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
+              >
+                {isAnalyzing ? "Loading demo…" : "Try checkmate demo"}
+              </button>
+            </div>
           </form>
 
           {error && <UploadError message={error} />}
@@ -688,11 +738,25 @@ export function ReviewExperience() {
                       {selectedFinding.played_move_san}
                     </p>
                     <p className="mt-2 text-sm leading-6 text-[#c3cec5]">
-                      The evaluation changed by{" "}
-                      <strong>{formatChange(selectedFinding.evaluation_change_cp)}</strong>{" "}
-                      from {selectedFinding.color}&apos;s perspective. This is an
-                      approximate engine-based signal, not an explanation of
-                      intent.
+                      {selectedFinding.label === "terminal" &&
+                      selectedFinding.evaluation_after.terminal_reason ===
+                        "checkmate" ? (
+                        <>
+                          {selectedFinding.played_move_san} ends the game by
+                          checkmate. This finding comes from the recorded legal
+                          position; earlier engine evaluations are approximate.
+                        </>
+                      ) : (
+                        <>
+                          The evaluation changed by{" "}
+                          <strong>
+                            {formatChange(selectedFinding.evaluation_change_cp)}
+                          </strong>{" "}
+                          from {selectedFinding.color}&apos;s perspective. This
+                          is an approximate engine-based signal, not an
+                          explanation of intent.
+                        </>
+                      )}
                     </p>
                   </div>
                 )}

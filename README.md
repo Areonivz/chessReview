@@ -199,3 +199,13 @@ reachable and can consume the available CPU; the per-process engine limit
 caps concurrent Stockfish processes but is not authentication or a
 rate-limiting system. Do not use this deployment for sensitive games or
 untrusted high-volume traffic.
+
+## Milestone 7: guided recruiter demo
+
+The landing page offers **Try checkmate demo**, which submits the bundled
+`frontend/public/demo.pgn` through the same API flow as an uploaded game. The
+Fool's Mate example selects its terminal finding automatically so visitors
+land on the final board position and see why checkmate is flagged. The app
+explains that the ending is determined by the legal move record while other
+engine evaluations remain approximate. A backend regression test checks that
+the bundled demo continues to produce the expected checkmate finding.

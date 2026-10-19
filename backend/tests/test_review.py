@@ -1,6 +1,7 @@
 import asyncio
 import threading
 from contextlib import contextmanager
+from pathlib import Path
 from types import SimpleNamespace
 from typing import Generator
 
@@ -20,6 +21,7 @@ SAMPLE_PGN = (
     "\n"
     "1. e4 e5 *\n"
 )
+DEMO_PGN_PATH = Path(__file__).resolve().parents[2] / "frontend" / "public" / "demo.pgn"
 
 
 class FakeEngine:
@@ -242,6 +244,26 @@ def test_checkmate_position_is_reported_without_engine_search(
     assert final_finding["evaluation_after"]["terminal_reason"] == "checkmate"
     assert fake.calls == 4
     assert result["complete"] is True
+
+
+def test_guided_demo_always_contains_a_checkmate_review_moment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake = FakeEngine()
+    monkeypatch.setattr(
+        review,
+        "open_configured_engine",
+        lambda **kwargs: fake_engine_context(fake, **kwargs),
+    )
+
+    result = review.analyze_game(DEMO_PGN_PATH.read_text(encoding="utf-8"))
+
+    terminal_finding = next(
+        finding for finding in result["findings"] if finding["label"] == "terminal"
+    )
+    assert terminal_finding["played_move_san"] == "Qh4#"
+    assert terminal_finding["evaluation_after"]["terminal_reason"] == "checkmate"
+    assert terminal_finding["ply"] == len(result["moves"])
 
 
 def test_stalemate_is_reported_as_terminal_draw(
