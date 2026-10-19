@@ -8,6 +8,11 @@ services:
     dockerContext: .
     healthCheckPath: /health
     envVars:
+      - key: API_PUBLIC_URL
+        fromService:
+          type: web
+          name: chess-review-api
+          envVarKey: RENDER_EXTERNAL_URL
       - key: FRONTEND_ORIGIN
         value: "*"
 
@@ -22,4 +27,4 @@ services:
         fromService:
           type: web
           name: chess-review-api
-          property: host
+          envVarKey: API_PUBLIC_URL

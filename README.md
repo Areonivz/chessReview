@@ -187,8 +187,8 @@ The root `render.yaml` Blueprint creates two services in Frankfurt:
 
 To deploy, connect the GitHub repository in Render, choose **New > Blueprint**,
 and select this repository. Render reads `render.yaml` to configure the
-services. The frontend obtains the backend hostname from the web service
-reference; it accepts either a hostname or a full URL. The API is configured
+services. The frontend obtains the API's public HTTPS URL through a
+self-referenced Render service environment variable. The API is configured
 with wildcard CORS because this is an anonymous public demo, not an access
 control boundary.
 
